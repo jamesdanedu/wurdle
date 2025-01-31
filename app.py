@@ -1,35 +1,19 @@
 from flask import Flask, render_template, request, jsonify, session
+from flask_cors import CORS
 import random
 import requests
 import os
 from datetime import datetime
-
+from wordLists import WORDS
 
 app = Flask(__name__)
+CORS(app, supports_credentials=True)
 app.secret_key = 'your_secret_key'  # Required for session management
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
 
 # In-memory database for top scores
 top_scores = {4: [], 5: [], 6: [], 7: []}
-
-# Word lists for different lengths and modes
-WORDS = {
-    4: {
-        'normal': ['love', 'tree', 'bird', 'fish'],
-        'advanced': ['lynx', 'quid', 'jazz', 'pyre']
-    },
-    5: {
-        'normal': ['apple', 'grape', 'melon', 'peach'],
-        'advanced': ['xylophone', 'quasar', 'jigsaw', 'zephyr']
-    },
-    6: {
-        'normal': ['banana', 'orange', 'purple', 'yellow'],
-        'advanced': ['jazzier', 'quacks', 'zydeco', 'xyloid']
-    },
-    7: {
-        'normal': ['chocolate', 'strawberry', 'vanilla', 'caramel'],
-        'advanced': ['jazzband', 'quixotic', 'zygotic', 'xylitol']
-    }
-}
 
 @app.route('/')
 def home():
@@ -47,41 +31,51 @@ def start_game():
 
 @app.route('/submit_guess', methods=['POST'])
 def submit_guess():
-    guess = request.json['guess'].lower()
-    target_word = session.get('target_word', '').lower()
-    feedback = compare_words(guess, target_word)
-    session['guesses'].append({'guess': guess, 'feedback': feedback})
+    try:
+        guess = request.json['guess'].lower()
+        target_word = session.get('target_word', '').lower()
+        if not target_word:
+            app.logger.error("No target word in session")
+            return jsonify({"error": "No active game"}), 500
+            
+        feedback = compare_words(guess, target_word)
+        if 'guesses' not in session:
+            session['guesses'] = []
+        session['guesses'].append({'guess': guess, 'feedback': feedback})
+    
+        # Check if it's the 6th guess or correct
+        is_sixth_guess = len(session['guesses']) >= 6
+        is_correct = guess == target_word
 
-    # Check if it's the 6th guess or correct
-    is_sixth_guess = len(session['guesses']) >= 6
-    is_correct = guess == target_word
-
-    if is_correct:
-        end_time = datetime.now().timestamp()
-        time_taken = end_time - session['start_time']
-        return jsonify({
-            'feedback': feedback,
-            'guesses': session['guesses'],
-            'game_over': True,
-            'time_taken': time_taken,
-            'correct': True,
-            'target_word': target_word
-        })
-    elif is_sixth_guess:  # Max guesses reached
-        return jsonify({
-            'feedback': feedback,
-            'guesses': session['guesses'],
-            'game_over': True,
-            'correct': False,
-            'target_word': target_word  # Make sure this is being sent
-        })
-    else:
-        return jsonify({
-            'feedback': feedback, 
-            'guesses': session['guesses'],
-            'game_over': False,
-            'correct': False
-        })
+        if is_correct:
+            end_time = datetime.now().timestamp()
+            time_taken = end_time - session['start_time']
+            return jsonify({
+                'feedback': feedback,
+                'guesses': session['guesses'],
+                'game_over': True,
+                'time_taken': time_taken,
+                'correct': True,
+                'target_word': target_word
+            })
+        elif is_sixth_guess:  # Max guesses reached
+            return jsonify({
+                'feedback': feedback,
+                'guesses': session['guesses'],
+                'game_over': True,
+                'correct': False,
+                'target_word': target_word  # Make sure this is being sent
+            })
+        else:
+            return jsonify({
+                'feedback': feedback, 
+                'guesses': session['guesses'],
+                'game_over': False,
+                'correct': False
+            })
+    except Exception as e:
+        app.logger.error(f"Error in submit_guess: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/fetch_definition', methods=['POST'])
 def fetch_definition():
