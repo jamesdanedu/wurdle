@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Wurdle</title>
+   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <h1 style="color:rgb(255, 255, 255);">SME Wurdle</h1>
+   <div id="setup-screen">
+       <label for="word-length">Word Length:</label>
+       <select id="word-length">
+           <option value="4">4 Letters</option>
+           <option value="5" selected>5 Letters</option>
+           <option value="6">6 Letters</option>
+           <option value="7">7 Letters</option>
+       </select>
+       <label for="mode">Mode:</label>
+       <select id="mode">
+           <option value="normal" selected>Normal</option>
+           <option value="advanced">Advanced</option>
+       </select>
+       <button type="button" id="start-game">Start</button>
+   </div>
+   <div id="game-screen" style="display: none;">
+       <div id="guesses"></div>
+       <input type="text" id="guess-input" maxlength="5" placeholder="Guess">
+       <button type="button" id="submit-guess">Submit Guess</button>
+       <div id="game-over-message"></div>
+   </div>
+   <script>
+       let wordLength = 5;
+       let currentRow = 0;
+       let timerInterval;
+       let startTime;
+
+       function fetchAndDisplayDefinition(targetWord) {
+           fetch('/fetch_definition', {
+               method: 'POST',
+               headers: {
+                   'Content-Type': 'application/json',
+               },
+               body: JSON.stringify({ word: targetWord }),
+           })
+           .then(response => {
+               if (!response.ok) {
+                   throw new Error(`HTTP error! status: ${response.status}`);
+               }
+               return response.json();
+           })
+           .then(definitionData => {
+               document.getElementById('game-over-message').innerHTML = `
+                   <div class="game-over-content">
+                       <p>Game Over!</p>
+                       <p>The word was: <strong>${targetWord.toUpperCase()}</strong></p>
+                       <p>Definition: ${definitionData.definition || 'No definition found.'}</p>
+                       <button id="play-again">Start New Game</button>
+                   </div>
+               `;
+               addPlayAgainListener();
+           })
+           .catch(error => {
+               console.error('Error fetching definition:', error);
+               document.getElementById('game-over-message').innerHTML = `
+                   <div class="game-over-content">
+                       <p>Game Over!</p>
+                       <p>The word was: <strong>${targetWord.toUpperCase()}</strong></p>
+                       <p>Unable to load definition at this time.</p>
+                       <button id="play-again">Start New Game</button>
+                   </div>
+               `;
+               addPlayAgainListener();
+           });
+       }
+
+       function showGameOverError() {
+           document.getElementById('game-over-message').innerHTML = `
+               <div class="game-over-content">
+                   <p>Game Over!</p>
+                   <p>An error occurred. Please try again.</p>
+                   <button id="play-again">Start New Game</button>
+               </div>
+           `;
+           addPlayAgainListener();
+       }
+
+       function addPlayAgainListener() {
+           document.getElementById('play-again').addEventListener('click', () => {
+               location.reload();
+           });
+       }
+
+       document.getElementById('start-game').addEventListener('click', () => {
+           wordLength = document.getElementById('word-length').value;
+           const mode = document.getElementById('mode').value;
+           fetch('/start_game', {
+               method: 'POST',
+               headers: {
+                   'Content-Type': 'application/json',
+               },
+               body: JSON.stringify({ wordLength, mode }),
+           })
+           .then(response => response.json())
+           .then(data => {
+               document.getElementById('setup-screen').style.display = 'none';
+               document.getElementById('game-screen').style.display = 'block';
+
+               const guessesDiv = document.getElementById('guesses');
+               guessesDiv.innerHTML = '';
+               for (let i = 0; i < 6; i++) {
+                   const guessRow = document.createElement('div');
+                   guessRow.className = 'guess-row';
+                   for (let j = 0; j < wordLength; j++) {
+                       const letterDiv = document.createElement('span');
+                       guessRow.appendChild(letterDiv);
+                   }
+                   guessesDiv.appendChild(guessRow);
+               }
+
+               startTime = Date.now();
+               timerInterval = setInterval(updateTimer, 1000);
+               document.getElementById('guess-input').maxLength = wordLength;
+           });
+       });
+
+       document.getElementById('submit-guess').addEventListener('click', () => {
+           const guess = document.getElementById('guess-input').value.toLowerCase();
+           if (guess.length !== parseInt(wordLength)) {
+               alert(`Please enter a ${wordLength}-letter word.`);
+               return;
+           }
+
+           fetch('/submit_guess', {
+               method: 'POST',
+               headers: {
+                   'Content-Type': 'application/json',
+               },
+               body: JSON.stringify({ guess }),
+           })
+           .then(response => response.json())
+           .then(data => {
+               const guessesDiv = document.getElementById('guesses');
+               
+               // Check if we've reached max attempts
+               if (currentRow >= 6) {
+                   return;  // Don't process any more guesses
+               }
+
+               const currentGuessRow = guessesDiv.children[currentRow];
+               currentGuessRow.innerHTML = '';
+               
+               data.feedback.forEach(feedback => {
+                   const letterDiv = document.createElement('span');
+                   letterDiv.textContent = feedback.letter.toUpperCase();
+                   letterDiv.className = feedback.status;
+                   currentGuessRow.appendChild(letterDiv);
+               });
+
+               // Increment row count after displaying the guess
+               currentRow++;
+
+               // Check if this was the last attempt or if word was guessed correctly
+               if (currentRow >= 6 || data.game_over) {
+                   clearInterval(timerInterval);
+                   
+                   // First display the final guess
+                   if (data.feedback) {
+                       const currentGuessRow = guessesDiv.children[currentRow - 1];
+                       currentGuessRow.innerHTML = '';
+                       data.feedback.forEach(feedback => {
+                           const letterDiv = document.createElement('span');
+                           letterDiv.textContent = feedback.letter.toUpperCase();
+                           letterDiv.className = feedback.status;
+                           currentGuessRow.appendChild(letterDiv);
+                       });
+                   }
+
+                   if (data.correct) {
+                       const timeTaken = Math.round(data.time_taken);
+                       document.getElementById('game-over-message').innerHTML = `
+                           <div class="game-over-content">
+                               <p>Congratulations! You guessed the word in ${timeTaken} seconds.</p>
+                               <button id="play-again">Start New Game</button>
+                           </div>
+                       `;
+                       addPlayAgainListener();
+                   } else {
+                       // Show immediate loading message
+                       document.getElementById('game-over-message').innerHTML = `
+                           <div class="game-over-content">
+                               <p>Game Over! Getting word details...</p>
+                           </div>
+                       `;
+
+                       console.log("Game over data:", data); // Debug log
+                       
+                       if (!data.target_word) {
+                           console.error('No target word in response, making another request');
+                           // Make an additional request to get the target word if needed
+                           fetch('/get_target_word', {
+                               method: 'GET',
+                           })
+                           .then(response => response.json())
+                           .then(wordData => {
+                               if (wordData.target_word) {
+                                   fetchAndDisplayDefinition(wordData.target_word);
+                               } else {
+                                   throw new Error('Could not get target word');
+                               }
+                           })
+                           .catch(error => {
+                               console.error('Error getting target word:', error);
+                               showGameOverError();
+                           });
+                       } else {
+                           fetchAndDisplayDefinition(data.target_word);
+                       }
+                   }
+
+                   // Disable input and submit button
+                   document.getElementById('guess-input').disabled = true;
+                   document.getElementById('submit-guess').disabled = true;
+               }
+
+               document.getElementById('guess-input').value = '';
+           })
+           .catch(error => {
+               console.error('Error:', error);
+           });
+       });
+
+       function updateTimer() {
+           const elapsed = Math.floor((Date.now() - startTime) / 1000);
+           console.log(`Time elapsed: ${elapsed} seconds`);
+       }
+   </script>
+</body>
+</html>

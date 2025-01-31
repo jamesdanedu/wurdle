@@ -1,0 +1,150 @@
+body {
+    font-family: 'Bahnschrift Regular', sans-serif;
+    text-align: center;
+    margin: 0;
+    padding: 16px;
+    background-color: #e01f36;
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 20px;
+}
+
+#setup-screen, #game-screen {
+    margin-top: 20px;
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+#guesses {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 20px;
+}
+
+.guess-row {
+    display: flex;
+    gap: 5px;
+}
+
+.guess-row span {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+    text-align: center;
+    border: 2px solid #ccc;
+    border-radius: 4px;
+    font-size: 20px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.guess-row .correct {
+    background-color: #6aaa64;
+    border-color: #6aaa64;
+    color: white;
+}
+
+.guess-row .present {
+    background-color: #c9b458;
+    border-color: #c9b458;
+    color: white;
+}
+
+.guess-row .absent {
+    background-color: #787c7e;
+    border-color: #787c7e;
+    color: white;
+}
+
+#guess-input {
+    margin-top: 20px;
+    padding: 10px;
+    font-size: 16px;
+    border: 2px solid #ccc;
+    border-radius: 4px;
+    text-transform: uppercase;
+    width: 150px;
+}
+
+#submit-guess {
+    margin-top: 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #487bb6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#submit-guess:hover {
+    background-color: #45a049;
+}
+
+.game-over-content {
+    margin-top: 20px;
+    padding: 15px;
+    border-top: 1px solid #ccc;
+}
+
+.game-over-content p {
+    margin: 10px 0;
+    font-size: 16px;
+}
+
+.game-over-content strong {
+    color: #333;
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+#play-again {
+    margin-top: 15px;
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #487bb6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+#play-again:hover {
+    background-color: #45a049;
+}
+
+select, button {
+    padding: 8px 16px;
+    margin: 0 5px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: white;
+}
+
+button {
+    background-color: #487bb6;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+label {
+    margin-right: 5px;
+    font-weight: bold;
+    color: #333;
+}
