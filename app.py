@@ -66,12 +66,12 @@ def submit_guess():
         if not target_word:
             app.logger.error("No target word in session")
             return jsonify({"error": "No active game"}), 500
-            
+
         feedback = compare_words(guess, target_word)
         if 'guesses' not in session:
             session['guesses'] = []
         session['guesses'].append({'guess': guess, 'feedback': feedback})
-    
+
         # Check if it's the 6th guess or correct
         is_sixth_guess = len(session['guesses']) >= 6
         is_correct = guess == target_word
@@ -79,28 +79,45 @@ def submit_guess():
         if is_correct:
             end_time = datetime.now().timestamp()
             time_taken = end_time - session['start_time']
+            definition = fetchDictionaryEntry(target_word)  # Fetch definition here
+            # Get current scores for this word length to determine rank
+            response = supabase.table('wurdle_scores').select('*')\
+                .eq('word_length', str(len(target_word)))\
+                .order('time')\
+                .execute()
+            current_scores = response.data
+            rank = 1
+            for score in current_scores:
+                if score['time'] < time_taken:
+                    rank += 1
+
             return jsonify({
                 'feedback': feedback,
                 'guesses': session['guesses'],
                 'game_over': True,
                 'time_taken': time_taken,
                 'correct': True,
-                'target_word': target_word
+                'target_word': target_word,
+                'definition': definition, # Include definition
+                'rank': rank
             })
         elif is_sixth_guess:  # Max guesses reached
+            definition = fetchDictionaryEntry(target_word)  # Fetch definition here
             return jsonify({
                 'feedback': feedback,
                 'guesses': session['guesses'],
                 'game_over': True,
                 'correct': False,
-                'target_word': target_word
+                'target_word': target_word,
+                'definition': definition # Include definition
             })
         else:
             return jsonify({
-                'feedback': feedback, 
+                'feedback': feedback,
                 'guesses': session['guesses'],
                 'game_over': False,
-                'correct': False
+                'correct': False,
+                'target_word': target_word # Still send target word for use if game ends
             })
     except Exception as e:
         app.logger.error(f"Error in submit_guess: {str(e)}")
