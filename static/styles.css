@@ -11,7 +11,7 @@ html { /* Include html just to be safe */
   font-family: 'Bahnschrift Regular', sans-serif;
   text-align: center;
   margin: 0;
-  background-color: #e01f36;
+  background-color: #bd0000;
 }
 
 
@@ -45,13 +45,13 @@ h1 {
 
 .guess-row span {
     display: inline-block;
-    width: 40px;
-    height: 40px;
-    line-height: 40px;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
     text-align: center;
     border: 2px solid #ccc;
-    border-radius: 4px;
-    font-size: 20px;
+    border-radius: 3px;
+    font-size: 18px;
     font-weight: bold;
     text-transform: uppercase;
 }
@@ -75,8 +75,8 @@ h1 {
 }
 
 #guess-input {
-    margin-top: 20px;
-    padding: 10px;
+    margin-top: 12px;
+    padding: 6px;
     font-size: 16px;
     border: 2px solid #ccc;
     border-radius: 4px;
@@ -85,8 +85,8 @@ h1 {
 }
 
 #submit-guess {
-    margin-top: 10px;
-    padding: 10px 20px;
+    margin-top: 6px;
+    padding: 8px 16px;
     font-size: 16px;
     background-color: #487bb6;
     color: white;
@@ -100,8 +100,8 @@ h1 {
 }
 
 .game-over-content {
-    margin-top: 20px;
-    padding: 15px;
+    margin-top: 12px;
+    padding: 10px;
     border-top: 1px solid #ccc;
 }
 
@@ -117,9 +117,9 @@ h1 {
 }
 
 #play-again {
-    margin-top: 15px;
-    padding: 10px 20px;
-    font-size: 16px;
+    margin-top: 10px;
+    padding: 8px 16px;
+    font-size: 14px;
     background-color: #487bb6;
     color: white;
     border: none;
@@ -135,7 +135,7 @@ h1 {
 select, button {
     padding: 8px 16px;
     margin: 0 5px;
-    font-size: 14px;
+    font-size: 13px;
     border: 1px solid #ccc;
     border-radius: 4px;
     background-color: white;
