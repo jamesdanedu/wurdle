@@ -8,7 +8,7 @@ let usedLetters = new Set();
 
 function initializeAlphabetGrid() {
     const grid = document.getElementById('alphabet-grid');
-    grid.innerHTML = ''; // Clear existing letters
+    grid.innerHTML = '';
     'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(letter => {
         const letterDiv = document.createElement('div');
         letterDiv.className = 'letter-tile';
@@ -35,8 +35,7 @@ function updateUsedLetters(guess) {
 function showHighScores(initialWordLength = 5) {
     const modal = document.getElementById('high-scores-modal');
     modal.style.display = 'block';
-    
-    // Setup tab functionality
+
     const tabs = document.querySelectorAll('.tab-button');
     tabs.forEach(tab => {
         tab.classList.remove('active');
@@ -49,8 +48,7 @@ function showHighScores(initialWordLength = 5) {
             loadScoresForLength(this.dataset.length);
         });
     });
-    
-    // Load scores
+
     loadScoresForLength(initialWordLength);
 }
 
@@ -59,7 +57,7 @@ function loadScoresForLength(wordLength) {
         .then(response => response.json())
         .then(scores => {
             const scoresList = document.getElementById('high-scores-list');
-            
+
             let html = `
                 <table class="scores-table">
                     <tr>
@@ -68,17 +66,17 @@ function loadScoresForLength(wordLength) {
                         <th>Time (seconds)</th>
                     </tr>
             `;
-            
+
             scores.forEach((score, index) => {
                 html += `
                     <tr>
-                        <td>${index + 1}</td>
-                        <td>${score.name}</td>
+                        <td><span class="math-inline">\{index \+ 1\}</td\>
+<td\></span>{score.name}</td>
                         <td>${Math.round(score.time)}</td>
                     </tr>
                 `;
             });
-            
+
             if (scores.length === 0) {
                 html += `
                     <tr>
@@ -86,7 +84,7 @@ function loadScoresForLength(wordLength) {
                     </tr>
                 `;
             }
-            
+
             html += '</table>';
             scoresList.innerHTML = html;
         });
@@ -126,7 +124,6 @@ document.getElementById('start-game').addEventListener('click', () => {
     })
     .then(response => response.json())
     .then(data => {
-        // console.log(`Target word is: ${data.target_word}`); // For testing
         document.getElementById('setup-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
         currentRow = 0;
@@ -143,7 +140,6 @@ document.getElementById('start-game').addEventListener('click', () => {
             guessesDiv.appendChild(guessRow);
         }
 
-        // Reset used letters
         usedLetters.clear();
         initializeAlphabetGrid();
 
@@ -175,14 +171,14 @@ function submitGuess() {
     .then(response => response.json())
     .then(data => {
         const guessesDiv = document.getElementById('guesses');
-        
+
         if (currentRow >= 6) {
             return;
         }
 
         const currentGuessRow = guessesDiv.children[currentRow];
         currentGuessRow.innerHTML = '';
-        
+
         data.feedback.forEach(feedback => {
             const letterDiv = document.createElement('span');
             letterDiv.textContent = feedback.letter.toUpperCase();
@@ -196,37 +192,30 @@ function submitGuess() {
         if (currentRow >= 6 || data.game_over) {
             clearInterval(timerInterval);
             document.getElementById('guess-input').disabled = true;
-            
-            if (data.correct) {
-                const timeTaken = Math.round(data.time_taken);
-                fetch(`/get_scores/${wordLength}`)
-                .then(response => response.json())
-                .then(scores => {
-                    if (scores.length < 20 || timeTaken < scores[scores.length - 1].time) {
-                        const name = prompt("You got a high score! Enter your name:");
-                        if (name) {
-                            fetch('/submit_score', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                    name: name,
-                                    time: timeTaken,
-                                    wordLength: wordLength
-                                }),
-                            })
-                            .then(response => response.json())
-                            .then(rankData => {
-                                showGameOverContent(timeTaken, rankData.rank);
-                            });
-                        }
-                    } else {
-                        showGameOverContent(timeTaken, 1);
-                    }
+
+            const timeTaken = data.correct ? Math.round(data.time_taken) : null;
+            const rank = data.correct ? data.rank : null;
+
+            showGameOver(timeTaken, rank, data.target_word, data.definition); // Show immediately
+
+            if (!data.definition) {
+                fetch('/fetch_definition', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ word: data.target_word }),
+                })
+                .then(defResponse => defResponse.json())
+                .then(defData => {
+                    data.definition = defData.definition;
+                    showGameOver(timeTaken, rank, data.target_word, data.definition);
+                })
+                .catch(error => {
+                    console.error('Error fetching definition:', error);
+                    data.definition = "Error fetching definition.";
+                    showGameOver(timeTaken, rank, data.target_word, data.definition);
                 });
-            } else {
-                showGameOverFailure(data.target_word);
             }
         }
 
@@ -239,11 +228,9 @@ function submitGuess() {
 
 function updateTimer() {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    console.log(`Time elapsed: ${elapsed} seconds`);
     timerMinutes = Math.floor(elapsed / 60);
     timerSeconds = elapsed % 60;
 
-    // Add leading zeros if needed
     const minutesStr = timerMinutes < 10 ? '0' + timerMinutes : timerMinutes;
     const secondsStr = timerSeconds < 10 ? '0' + timerSeconds : timerSeconds;
 
@@ -251,98 +238,47 @@ function updateTimer() {
     document.getElementById('timer-seconds').textContent = secondsStr;
 }
 
-function showGameOverContent(timeTaken, rank) {
-    document.getElementById('game-time').textContent = timeTaken;
-    document.getElementById('game-rank').textContent = rank;
-    document.querySelector('.game-over-content').style.display = 'block';
-}
+function showGameOver(timeTaken, rank, targetWord, definition) {
+    document.getElementById('game-time').textContent = timeTaken || "";
+    document.getElementById('game-rank').textContent = rank || "";
+    const gameOverMessage = document.getElementById('game-over-message');
+    gameOverMessage.innerHTML = ""; // Clear previous content
 
-function showGameOverFailure(targetWord) {
-    fetchAndDisplayDefinition(targetWord);
-}
+    let gameOverContent = document.createElement('div');
+    gameOverContent.className = "game-over-content";
 
-function fetchAndDisplayDefinition(targetWord) {
-    fetch('/fetch_definition', {
-        method: 'POST',
-        headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ word: targetWord }),
-        }) 
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`Definition not found for ${targetWord}`);
-        }
-        return response.json();
-    })
-    .then(definitionData => {
-        // Only display the definition if it exists:
-        if (definitionData.definition) {  // Check if definitionData.definition exists
-            document.getElementById('game-over-message').innerHTML = `
-                <div class="game-over-content">
-                    <p>Game Over!</p>
-                    <p>The word was: <strong>${targetWord.toUpperCase()}</strong></p>
-                    <p>Definition: ${definitionData.definition}</p>
-                    <div>
-                        <button id="play-again">New Game</button> <button id="show-high-scores">High Scores</button>
-                    </div>
-                </div>
-            `;
-        } else {
-            document.getElementById('game-over-message').innerHTML = `
-                <div class="game-over-content">
-                    <p>Game Over!</p>
-                    <p>The word was: <strong>${targetWord.toUpperCase()}</strong></p>
-                    <div>
-                        <button id="play-again">New Game</button> <button id="show-high-scores">High Scores</button>
-                    </div>
-                </div>
-            `;
-        }
-    })
-    .catch(error => {
-        console.error('Error fetching definition:', error);
-        document.getElementById('game-over-message').innerHTML = `
-                <div class="game-over-content">
-                    <p>Game Over!</p>
-                    <div>
-                        <button id="play-again">New Game</button> <button id="show-high-scores">High Scores</button>
-                    </div>
-                </div>
-            `;
+    let message = document.createElement('p');
+    message.textContent = timeTaken ? "Congratulations!" : "Game Over!";
+    gameOverContent.appendChild(message);
 
-    });
-}
+    let wordWas = document.createElement('p');
+    wordWas.innerHTML = `The word was: <strong>${targetWord.toUpperCase()}</strong>`;
+    gameOverContent.appendChild(wordWas);
 
-function showGameOverError() {
-    document.getElementById('game-over-message').innerHTML = `
-        <div class="game-over-content">
-            <p>Game Over!</p>
-            <p>An error occurred. Please try again.</p>
-            <div>
-                <button id="play-again">New Game</button>
-                <button id="show-high-scores">High Scores</button>
-            </div>
-        </div>
-    `;
-}
-
-function addPlayAgainListener() {
-    document.getElementById('play-again').addEventListener('click', () => {
-        location.reload();
-    });
-}
-
-
-
-// Add the event listener to a *static* parent element (e.g., the body):
-document.body.addEventListener('click', function(event) {
-    if (event.target && event.target.id === 'play-again') {
-        location.reload();
-    } else if (event.target && event.target.id === 'show-high-scores') {
-        showHighScores(parseInt(wordLength));
+    if (definition) {
+        let def = document.createElement('p');
+        def.textContent = "Definition: " + definition;
+        gameOverContent.appendChild(def);
     }
-});
 
-// Initialize alphabet grid on page load
-initializeAlphabetGrid();
+    let buttonsDiv = document.createElement('div');
+    buttonsDiv.innerHTML = '<button id="play-again">New Game</button> <button id="show-high-scores">High Scores</button>';
+    gameOverContent.appendChild(buttonsDiv);
+
+    gameOverMessage.appendChild(gameOverContent);
+
+    // Add event listeners AFTER the buttons are in the DOM
+    const playAgainButton = document.getElementById('play-again');
+    if (playAgainButton) {  // Check if the button exists
+        playAgainButton.addEventListener('click', () => {
+            location.reload();
+        });
+    }
+
+    const showHighScoresButton = document.getElementById('show-high-scores');
+    if (showHighScoresButton) { // Check if the button exists
+        showHighScoresButton.addEventListener('click', () => {
+            showHighScores(parseInt(wordLength));
+        });
+    }
+}
