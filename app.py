@@ -61,13 +61,26 @@ def start_game():
 @app.route('/submit_guess', methods=['POST'])
 def submit_guess():
     try:
-        guess = request.json['guess'].lower()
+        # Add debug logging
+        print("Submit guess endpoint hit")
+        print("Request data:", request.json)
+        
+        # Check if there's an active game
+        if 'target_word' not in session:
+            print("No target word in session")
+            return jsonify({"error": "No active game"}), 400
+
+        guess = request.json.get('guess', '').lower()
         target_word = session.get('target_word', '').lower()
-        if not target_word:
-            app.logger.error("No target word in session")
-            return jsonify({"error": "No active game"}), 500
+        
+        print(f"Guess: {guess}, Target: {target_word}")  # Debug log
+
+        # Validate guess
+        if not guess or len(guess) != len(target_word):
+            return jsonify({"error": "Invalid guess"}), 400
 
         feedback = compare_words(guess, target_word)
+        
         if 'guesses' not in session:
             session['guesses'] = []
         session['guesses'].append({'guess': guess, 'feedback': feedback})
@@ -75,53 +88,33 @@ def submit_guess():
         # Check if it's the 6th guess or correct
         is_sixth_guess = len(session['guesses']) >= 6
         is_correct = guess == target_word
-
+        
+        response_data = {
+            'feedback': feedback,
+            'guesses': session['guesses'],
+            'game_over': is_sixth_guess or is_correct,
+        }
+        
         if is_correct:
             end_time = datetime.now().timestamp()
             time_taken = end_time - session['start_time']
-            definition = fetchDictionaryEntry(target_word)  # Fetch definition here
-            # Get current scores for this word length to determine rank
-            response = supabase.table('wurdle_scores').select('*')\
-                .eq('word_length', str(len(target_word)))\
-                .order('time')\
-                .execute()
-            current_scores = response.data
-            rank = 1
-            for score in current_scores:
-                if score['time'] < time_taken:
-                    rank += 1
-
-            return jsonify({
-                'feedback': feedback,
-                'guesses': session['guesses'],
-                'game_over': True,
+            definition = fetchDictionaryEntry(target_word)
+            response_data.update({
                 'time_taken': time_taken,
                 'correct': True,
                 'target_word': target_word,
-                'definition': definition, # Include definition
-                'rank': rank
+                'definition': definition
             })
-        elif is_sixth_guess:  # Max guesses reached
-            definition = fetchDictionaryEntry(target_word)  # Fetch definition here
-            return jsonify({
-                'feedback': feedback,
-                'guesses': session['guesses'],
-                'game_over': True,
-                'correct': False,
-                'target_word': target_word,
-                'definition': definition # Include definition
-            })
-        else:
-            return jsonify({
-                'feedback': feedback,
-                'guesses': session['guesses'],
-                'game_over': False,
-                'correct': False,
-                'target_word': target_word # Still send target word for use if game ends
-            })
+
+        print("Sending response:", response_data)  # Debug log
+        return jsonify(response_data)
+
     except Exception as e:
-        app.logger.error(f"Error in submit_guess: {str(e)}")
+        print(f"Error in submit_guess: {str(e)}")  # Debug log
+        import traceback
+        traceback.print_exc()  # Print full stack trace
         return jsonify({"error": str(e)}), 500
+    
 
 @app.route('/submit_score', methods=['POST'])
 def submit_score():
@@ -218,8 +211,10 @@ def fetchDictionaryEntry(word):
     try:
         print(f"Making API request to: {url}")  # Debug log
         response = requests.get(url)
+        print(f"Response status: {response.status_code}")  # Debug log
         response.raise_for_status()
         data = response.json()
+        print(f"Response data: {data}")  # Debug log
         
         if isinstance(data, list) and len(data) > 0:
             entry = data[0]
