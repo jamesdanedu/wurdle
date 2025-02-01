@@ -28,33 +28,32 @@
     <div id="game-screen" style="display: none;">
         <div class="game-container">
             <div class="left-column">
-                <div id="timer-container">
-                    <span id="timer-minutes">00</span>:<span id="timer-seconds">00</span>
-                </div>
-            </div>
-            <div class="middle-column">
-                <div id="guesses"></div>
-                <input type="text" id="guess-input" maxlength="5" placeholder="Guess">
-                <div id="game-over-message"></div>
-                <div class="game-over-content" style="display: none;">
-                    <p>Congratulations! You got a high score!</p>
-                    <p>Your time: <span id="game-time"></span> seconds</p>
-                    <p>Rank: #<span id="game-rank"></span></p>
-                    <div>
-                        <button id="play-again">New Game</button>
-                        <button id="show-high-scores">High Scores</button>
+                <div class="left-panel">
+                    <div id="timer-container">
+                        <span id="timer-minutes">00</span>:<span id="timer-seconds">00</span>
                     </div>
                 </div>
             </div>
+            
+            <div class="middle-column">
+                <div class="middle-panel">
+                    <div id="guesses"></div>
+                    <input type="text" id="guess-input" maxlength="5" placeholder="Guess">
+                    <div id="game-over-message"></div>
+                </div>
+            </div>
+            
             <div class="right-column">
-                <div id="alphabet-tracker">
-                    <h3>Letter Use</h3>
-                    <div id="alphabet-grid"></div>
+                <div class="right-panel">
+                    <div id="alphabet-tracker">
+                        <h3>Letter Use</h3>
+                        <div id="alphabet-grid"></div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-
+    
     <!-- High Scores Modal -->
     <div id="high-scores-modal" class="modal">
         <div class="modal-content">
