@@ -4,16 +4,41 @@ import random
 import requests
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+from supabase import create_client
 from wordLists import WORDS
 
+# Load environment variables
+load_dotenv()
+
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
+CORS(app, 
+     supports_credentials=True,
+     resources={
+         r"/*": {
+             "origins": ["https://stmarysedenderry.ie"],
+             "methods": ["GET", "POST", "OPTIONS"],
+             "allow_headers": ["Content-Type"],
+             "expose_headers": ["Content-Range", "X-Content-Range"]
+         }
+     })
 app.secret_key = 'your_secret_key'  # Required for session management
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_SECURE'] = True
 
-# In-memory database for top scores
-top_scores = {4: [], 5: [], 6: [], 7: []}
+# Initialize Supabase
+supabase_url = os.getenv('SUPABASE_URL')
+supabase_key = os.getenv('SUPABASE_KEY')
+
+
+if not supabase_url or not supabase_key:
+    raise Exception("Missing SUPABASE_URL or SUPABASE_KEY environment variables")
+
+# Initialize Supabase
+supabase = create_client(
+    supabase_url,
+    supabase_key
+)
 
 @app.route('/')
 def home():
@@ -24,10 +49,14 @@ def start_game():
     data = request.json
     word_length = int(data['wordLength'])
     mode = data['mode']
-    session['target_word'] = random.choice(WORDS[word_length][mode])
+    target_word = random.choice(WORDS[word_length][mode])
+    session['target_word'] = target_word
     session['guesses'] = []
-    session['start_time'] = datetime.now().timestamp()  # Start the timer
-    return jsonify({'status': 'ready'})
+    session['start_time'] = datetime.now().timestamp()
+    return jsonify({
+        'status': 'ready',
+        'target_word': target_word  # Added for testing
+    })
 
 @app.route('/submit_guess', methods=['POST'])
 def submit_guess():
@@ -64,7 +93,7 @@ def submit_guess():
                 'guesses': session['guesses'],
                 'game_over': True,
                 'correct': False,
-                'target_word': target_word  # Make sure this is being sent
+                'target_word': target_word
             })
         else:
             return jsonify({
@@ -77,6 +106,77 @@ def submit_guess():
         app.logger.error(f"Error in submit_guess: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/submit_score', methods=['POST'])
+def submit_score():
+    try:
+        data = request.json
+        name = data.get('name')
+        time = data.get('time')
+        word_length = str(data.get('wordLength'))
+        
+        if not all([name, time, word_length]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Get current scores for this word length
+        response = supabase.table('wurdle_scores').select('*')\
+            .eq('word_length', word_length)\
+            .order('time')\
+            .execute()
+            
+        current_scores = response.data
+        
+        # Check if this score qualifies for top 20
+        if len(current_scores) < 20 or time < current_scores[-1]['time']:
+            # Insert the new score
+            supabase.table('wurdle_scores').insert({
+                'name': name,
+                'time': time,
+                'word_length': word_length
+            }).execute()
+            
+            # Delete scores beyond top 20 if necessary
+            if len(current_scores) >= 20:
+                # Get new scores after insertion
+                response = supabase.table('wurdle_scores').select('*')\
+                    .eq('word_length', word_length)\
+                    .order('time')\
+                    .execute()
+                new_scores = response.data
+                
+                # Delete scores beyond top 20
+                for score in new_scores[20:]:
+                    supabase.table('wurdle_scores')\
+                        .delete()\
+                        .eq('id', score['id'])\
+                        .execute()
+            
+            # Calculate rank
+            rank = 1
+            for score in current_scores:
+                if score['time'] < time:
+                    rank += 1
+            return jsonify({'rank': rank})
+            
+        return jsonify({'rank': None})
+        
+    except Exception as e:
+        print(f"Error submitting score: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/get_scores/<word_length>', methods=['GET'])
+def get_scores(word_length):
+    try:
+        response = supabase.table('wurdle_scores').select('*')\
+            .eq('word_length', word_length)\
+            .order('time')\
+            .limit(20)\
+            .execute()
+            
+        return jsonify(response.data)
+    except Exception as e:
+        print(f"Error getting scores: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @app.route('/fetch_definition', methods=['POST'])
 def fetch_definition():
     try:
@@ -87,8 +187,13 @@ def fetch_definition():
         definition = fetchDictionaryEntry(word)
         return jsonify({'definition': definition or 'No definition found'})
     except Exception as e:
-        print(f"Error in fetch_definition: {str(e)}")  # Log the error
+        print(f"Error in fetch_definition: {str(e)}")
         return jsonify({'definition': 'Error fetching definition'}), 500
+
+@app.route('/get_target_word', methods=['GET'])
+def get_target_word():
+    target_word = session.get('target_word', '')
+    return jsonify({'target_word': target_word})
 
 def fetchDictionaryEntry(word):
     """Fetch the dictionary entry for a word using DictionaryAPI.dev"""
@@ -109,7 +214,7 @@ def fetchDictionaryEntry(word):
     except Exception as e:
         print(f"Error fetching definition: {e}")  # Debug log
         return f"Unable to fetch definition: {str(e)}"
-    
+
 def compare_words(guess, target_word):
     feedback = []
     target_letters = list(target_word)
@@ -131,11 +236,6 @@ def compare_words(guess, target_word):
             target_letters[target_letters.index(guess_letters[i])] = None  # Mark this letter as used
 
     return feedback
-
-@app.route('/get_target_word', methods=['GET'])
-def get_target_word():
-    target_word = session.get('target_word', '')
-    return jsonify({'target_word': target_word})
 
 if __name__ == '__main__':
     app.run(debug=True)
