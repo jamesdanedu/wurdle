@@ -24,16 +24,22 @@ app = Flask(__name__)
 #             "expose_headers": ["Content-Range", "X-Content-Range"]
 #         }
 #     })
+
 CORS(app, 
      supports_credentials=True,
      resources={
          r"/*": {
-             "origins": ["http://localhost:5000", "https://stmarysedenderry.ie"],  # Add localhost
+             "origins": [
+                 "https://stmarysedenderry.ie",
+                 "https://wurdle-orcin.vercel.app",
+                 "http://localhost:5000"  # Keep for development
+             ],
              "methods": ["GET", "POST", "OPTIONS"],
              "allow_headers": ["Content-Type"],
              "expose_headers": ["Content-Range", "X-Content-Range"]
          }
      })
+
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your_secret_key')
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_SECURE'] = True
