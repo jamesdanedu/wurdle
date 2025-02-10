@@ -18,39 +18,39 @@ const LANGUAGE_ALPHABETS = {
 };
 
 // Authentication check function
-async function checkAuth() {
-    try {
-        const response = await fetch('/auth/status', {
-            credentials: 'include'
-        });
-        const data = await response.json();
+//async function checkAuth() {
+//    try {
+ //       const response = await fetch('/auth/status', {
+  //          credentials: 'include'
+ //       });
+ //       const data = await response.json();
         
-        const authCheck = document.getElementById('auth-check');
-        const gameContent = document.getElementById('game-content');
-        const userEmail = document.getElementById('user-email');
+ //       const authCheck = document.getElementById('auth-check');
+  //      const gameContent = document.getElementById('game-content');
+  //      const userEmail = document.getElementById('user-email');
         
-        if (data.authenticated) {
+  //      if (data.authenticated) {
             // Show game, hide auth check
-            authCheck.style.display = 'none';
-            gameContent.style.display = 'block';
+  //          authCheck.style.display = 'none';
+   //         gameContent.style.display = 'block';
             // Display user email
-            userEmail.textContent = data.user.email;
-        } else {
-            // Show auth check, hide game
-            authCheck.style.display = 'flex';
-            gameContent.style.display = 'none';
-            userEmail.textContent = '';
-        }
-    } catch (error) {
-        console.error('Error checking auth status:', error);
-    }
-}
+  //          userEmail.textContent = data.user.email;
+  //      } else {
+  //          // Show auth check, hide game
+  //          authCheck.style.display = 'flex';
+   //         gameContent.style.display = 'none';
+  //          userEmail.textContent = '';
+  //      }
+  //  } catch (error) {
+  //      console.error('Error checking auth status:', error);
+  //  }
+//}
 
 function initializeEventListeners() {
     document.addEventListener('DOMContentLoaded', function() {
         // Check authentication immediately and periodically
-        checkAuth();
-        setInterval(checkAuth, 60000); // Check every minute
+        //checkAuth();
+        //setInterval(checkAuth, 60000); // Check every minute
 
         const languageSelect = document.getElementById('language');
         const wordLengthSelect = document.getElementById('word-length');
@@ -91,22 +91,22 @@ function initializeEventListeners() {
 
 function startGame() {
     // Check authentication first
-    fetch('/auth/status')
-        .then(response => response.json())
-        .then(data => {
-            if (!data.authenticated) {
-                const loginModal = document.getElementById('login-modal');
-                loginModal.style.display = 'block';
-                return;
-            }
+    //fetch('/auth/status')
+    //    .then(response => response.json())
+    //    .then(data => {
+    //        if (!data.authenticated) {
+     //           const loginModal = document.getElementById('login-modal');
+     //           loginModal.style.display = 'block';
+    //            return;
+    //        }
             
             // Show user info if authenticated
-            const userInfo = document.getElementById('user-info');
-            const userEmail = document.getElementById('user-email');
-            if (userInfo && userEmail) {
-                userInfo.style.display = 'block';
-                userEmail.textContent = data.user.email;
-            }
+            //const userInfo = document.getElementById('user-info');
+            //const userEmail = document.getElementById('user-email');
+            //if (userInfo && userEmail) {
+            //    userInfo.style.display = 'block';
+            //    userEmail.textContent = data.user.email;
+            //}
             
             // Clear any existing timer
             if (timerInterval) {
@@ -203,15 +203,16 @@ function startGame() {
                 errorMessage.textContent = 'Error starting game. Please try again.';
                 errorModal.style.display = 'block';
             });
-        })
-        .catch(error => {
-            console.error('Error checking authentication:', error);
-            const errorModal = document.getElementById('error-modal');
-            const errorMessage = document.getElementById('error-message');
-            errorMessage.textContent = 'Error checking authentication status. Please try again.';
-            errorModal.style.display = 'block';
-        });
-}
+        }
+    //)
+//       .catch(error => {
+//             console.error('Error checking authentication:', error);
+//            const errorModal = document.getElementById('error-modal');
+//            const errorMessage = document.getElementById('error-message');
+//           errorMessage.textContent = 'Error checking authentication status. Please try again.';
+//           errorModal.style.display = 'block';
+//       });
+//}
 
 function updateTimer() {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
