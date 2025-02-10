@@ -8,37 +8,26 @@ from dotenv import load_dotenv
 from supabase import create_client
 from wordLists import WORDS
 from functools import wraps
-from msal import ConfidentialClientApplication
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
-#CORS(app, 
-#     supports_credentials=True,
-#     resources={
-#         r"/*": {
-#             "origins": ["https://stmarysedenderry.ie"],
-#             "methods": ["GET", "POST", "OPTIONS"],
-#             "allow_headers": ["Content-Type"],
-#             "expose_headers": ["Content-Range", "X-Content-Range"]
-#         }
-#     })
 
 CORS(app, 
-     supports_credentials=True,
-     resources={
-         r"/*": {
-             "origins": [
-                 "https://stmarysedenderry.ie",
-                 "https://wurdle-orcin.vercel.app",
-                 "http://localhost:5000"  # Keep for development
-             ],
-             "methods": ["GET", "POST", "OPTIONS"],
-             "allow_headers": ["Content-Type"],
-             "expose_headers": ["Content-Range", "X-Content-Range"]
-         }
-     })
+    supports_credentials=True,
+    resources={
+        r"/*": {
+            "origins": [
+                "https://stmarysedenderry.ie",
+                "https://wurdle-orcin.vercel.app",
+                "http://localhost:5000"  # Keep for development
+            ],
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type"],
+            "expose_headers": ["Content-Range", "X-Content-Range"]
+        }
+    })
 
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your_secret_key')
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
@@ -48,111 +37,121 @@ app.config['SESSION_COOKIE_SECURE'] = True
 supabase_url = os.getenv('SUPABASE_URL')
 supabase_key = os.getenv('SUPABASE_KEY')
 
-# Microsoft OAuth configuration
-MS_CLIENT_ID = os.getenv('MS_CLIENT_ID')
-MS_CLIENT_SECRET = os.getenv('MS_CLIENT_SECRET')
-MS_TENANT_ID = os.getenv('MS_TENANT_ID')
-REDIRECT_URI = 'http://localhost:5000/auth/callback' if os.getenv('FLASK_ENV') == 'softlaunch' else 'https://wurdle-orcin.vercel.app/auth/callback'
+# Remove Microsoft OAuth configuration
+# MS_CLIENT_ID = os.getenv('MS_CLIENT_ID')
+# MS_CLIENT_SECRET = os.getenv('MS_CLIENT_SECRET')
+# MS_TENANT_ID = os.getenv('MS_TENANT_ID')
+# REDIRECT_URI = 'http://localhost:5000/auth/callback' if os.getenv('FLASK_ENV') == 'softlaunch' else 'https://wurdle-orcin.vercel.app/auth/callback'
 
-SCOPES = ['User.Read']
-AUTHORITY = f'https://login.microsoftonline.com/{MS_TENANT_ID}'
+# SCOPES = ['User.Read']
+# AUTHORITY = f'https://login.microsoftonline.com/{MS_TENANT_ID}'
 
-if not all([supabase_url, supabase_key, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_TENANT_ID]):
+if not all([supabase_url, supabase_key]): # Removed MS variables
     raise Exception("Missing required environment variables")
 
 # Initialize Supabase
 supabase = create_client(supabase_url, supabase_key)
 
-# Initialize MSAL
-msal_app = ConfidentialClientApplication(
-    MS_CLIENT_ID,
-    authority=AUTHORITY,
-    client_credential=MS_CLIENT_SECRET
-)
+# Removed MSAL initialization
+# msal_app = ConfidentialClientApplication(
+#     MS_CLIENT_ID,
+#     authority=AUTHORITY,
+#     client_credential=MS_CLIENT_SECRET
+# )
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user' not in session:
-            return jsonify({'error': 'Authentication required'}), 401
-        return f(*args, **kwargs)
-    return decorated_function
+# Removed login_required decorator
+
+# Removed Authentication routes (/auth/login, /auth/callback, /auth/status, /auth/logout)
+
+
+
+#if not all([supabase_url, supabase_key, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_TENANT_ID]):
+ #   raise Exception("Missing required environment variables")
+
+
+#def login_required(f):
+#    @wraps(f)
+#    def decorated_function(*args, **kwargs):
+#        if 'user' not in session:
+#            return jsonify({'error': 'Authentication required'}), 401
+#        return f(*args, **kwargs)
+#    return decorated_function
 
 # Authentication routes
-@app.route('/auth/login')
-def login():
-    auth_url = msal_app.get_authorization_request_url(
-        SCOPES,
-        redirect_uri=REDIRECT_URI,
-        state=os.urandom(16).hex()
-    )
-    return redirect(auth_url)
+#@app.route('/auth/login')
+#def login():
+#    auth_url = msal_app.get_authorization_request_url(
+#        SCOPES,
+#        redirect_uri=REDIRECT_URI,
+#        state=os.urandom(16).hex()
+#   )
+#    return redirect(auth_url)
 
-@app.route('/auth/callback')
-def auth_callback():
-    code = request.args.get('code')
-    error = request.args.get('error')
-    error_description = request.args.get('error_description')
+#@app.route('/auth/callback')
+#def auth_callback():
+#    code = request.args.get('code')
+#    error = request.args.get('error')
+#    error_description = request.args.get('error_description')
+#
+#    if error:
+#        print(f"Auth Error: {error} - {error_description}")
+#        return redirect(f'/?error={error}&error_description={error_description}')
+#    
+#    if not code:
+#        print("No authorization code received")
+#        return redirect('/?error=no_code')
+#
+#    try:
+#        result = msal_app.acquire_token_by_authorization_code(
+#            code,
+#            scopes=SCOPES,
+#            redirect_uri=REDIRECT_URI
+#        )
+#
+#        if 'error' in result:
+#           print(f"Token Error: {result.get('error')} - {result.get('error_description')}")
+#            return redirect(f'/?error={result["error"]}')
+#
+#        claims = result.get('id_token_claims', {})
+#        email = claims.get('email', '').lower()
+#        name = claims.get('name', '')
+#
+#        # Only check domain in production environment
+#        if os.getenv('FLASK_ENV') != 'development':
+#            if not email.endswith('@stmarysedenderry.ie'):
+#                print(f"Unauthorized email domain: {email}")
+#                return redirect('/?error=unauthorized_domain')
+#
+#        session['user'] = {
+#            'email': email,
+#            'name': name,
+#            'access_token': result['access_token']
+#        }
+#        
+#        return_url = session.pop('return_url', '/')
+#        return redirect(return_url)
 
-    if error:
-        print(f"Auth Error: {error} - {error_description}")
-        return redirect(f'/?error={error}&error_description={error_description}')
+#   except Exception as e:
+#        print(f"Authentication error: {str(e)}")
+#        return redirect('/?error=authentication_failed')
     
-    if not code:
-        print("No authorization code received")
-        return redirect('/?error=no_code')
 
-    try:
-        result = msal_app.acquire_token_by_authorization_code(
-            code,
-            scopes=SCOPES,
-            redirect_uri=REDIRECT_URI
-        )
+#@app.route('/auth/status')
+#def auth_status():
+#    if 'user' not in session:
+#        return jsonify({'authenticated': False})
+#    return jsonify({
+#        'authenticated': True,
+#        'user': {
+#            'email': session['user']['email'],
+#            'name': session['user']['name']
+#        }
+#    })
 
-        if 'error' in result:
-            print(f"Token Error: {result.get('error')} - {result.get('error_description')}")
-            return redirect(f'/?error={result["error"]}')
-
-        claims = result.get('id_token_claims', {})
-        email = claims.get('email', '').lower()
-        name = claims.get('name', '')
-
-        # Only check domain in production environment
-        if os.getenv('FLASK_ENV') != 'development':
-            if not email.endswith('@stmarysedenderry.ie'):
-                print(f"Unauthorized email domain: {email}")
-                return redirect('/?error=unauthorized_domain')
-
-        session['user'] = {
-            'email': email,
-            'name': name,
-            'access_token': result['access_token']
-        }
-        
-        return_url = session.pop('return_url', '/')
-        return redirect(return_url)
-
-    except Exception as e:
-        print(f"Authentication error: {str(e)}")
-        return redirect('/?error=authentication_failed')
-    
-
-@app.route('/auth/status')
-def auth_status():
-    if 'user' not in session:
-        return jsonify({'authenticated': False})
-    return jsonify({
-        'authenticated': True,
-        'user': {
-            'email': session['user']['email'],
-            'name': session['user']['name']
-        }
-    })
-
-@app.route('/auth/logout')
-def logout():
-    session.clear()
-    return redirect('/')
+#@app.route('/auth/logout')
+#def logout():
+#    session.clear()
+#    return redirect('/')
 
 # Game routes
 @app.route('/')
@@ -160,7 +159,7 @@ def home():
     return render_template('index.html')
 
 @app.route('/start_game', methods=['POST'])
-@login_required
+#@login_required
 def start_game():
     data = request.json
     word_length = int(data['wordLength'])
@@ -225,7 +224,7 @@ def submit_guess():
 
 
 @app.route('/submit_score', methods=['POST'])
-@login_required
+#@login_required
 def submit_score():
     try:
         data = request.json
@@ -296,7 +295,7 @@ def get_scores(word_length):
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/get_target_word')
-@login_required
+#@login_required
 def get_target_word():
     target_word = session.get('target_word', '')
     return jsonify({'target_word': target_word})
