@@ -5,28 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SME Wurdle</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <link href='https://fonts.googleapis.com/css?family=Orbitron' rel='stylesheet' type='text/css'>  
+    <link href='https://fonts.googleapis.com/css?family=Orbitron' rel='stylesheet' type='text/css'>
 </head>
 <body>
-    <h1 style="color:rgb(255, 255, 255);">SME Wurdle</h1>
-    <div id="setup-screen">
-        <label for="word-length">Word Length:</label>
-        <select id="word-length">
-            <option value="4">4 Letters</option>
-            <option value="5" selected>5 Letters</option>
-            <option value="6">6 Letters</option>
-            <option value="7">7 Letters</option>
-        </select>
-        <label for="mode">Mode:</label>
-        <select id="mode">
-            <option value="normal" selected>Normal</option>
-            <option value="advanced">Advanced</option>
-        </select>
-        <button type="button" id="start-game">Start</button>
+    <h1>SME Wurdle</h1>
+
+    <!-- Authentication Check -->
+    <div id="auth-check" style="display: none;">
+        <p>Please log in with your school email to play.</p>
+        <a href="/auth/login" class="login-button">Login with School Account</a>
     </div>
-    
-    <div id="game-screen" style="display: none;">
-        <div class="game-container">
+
+    <!-- Game Content -->
+    <div id="game-content">
+        <!-- User Info -->
+        <div id="user-info" style="text-align: right; padding: 10px; color: white;">
+            <span id="user-email"></span>
+            <a href="/auth/logout" style="color: white; margin-left: 10px;">Logout</a>
+        </div>
+
+        <!-- Setup Screen -->
+        <div id="setup-screen">
+            <div class="setup-container">
+                <label for="language">Language:</label>
+                <div class="language-dropdown">
+                    <select id="language" onchange="handleLanguageChange(this.value)">
+                        <option value="en" data-flag="/static/images/uk.png">English</option>
+                        <option value="ga" data-flag="/static/images/ireland.png">Gaeilge</option>
+                        <option value="fr" data-flag="/static/images/france.png">Français</option>
+                        <option value="es" data-flag="/static/images/spain.png">Español</option>
+                    </select>
+                </div>
+            
+                <div class="setup-item">
+                    <label for="word-length">Word Length:</label>
+                    <select id="word-length">
+                        <option value="4">4 Letters</option>
+                        <option value="5" selected>5 Letters</option>
+                        <option value="6">6 Letters</option>
+                        <option value="7">7 Letters</option>
+                    </select>
+                </div>
+                <div class="setup-item">
+                    <label for="mode">Mode:</label>
+                    <select id="mode">
+                        <option value="normal" selected>Normal</option>
+                        <option value="advanced">Advanced</option>
+                    </select>
+                </div>
+                <button type="button" id="start-game">Start</button>
+            </div>
+        </div>
+
+        <!-- Game Container -->
+        <div class="game-container" style="display: none;">
             <div class="left-column">
                 <div class="left-panel">
                     <div id="timer-container">
@@ -38,6 +70,7 @@
             <div class="middle-column">
                 <div class="middle-panel">
                     <div id="guesses"></div>
+                    <div id="special-chars" class="special-chars"></div>
                     <input type="text" id="guess-input" maxlength="5" placeholder="Guess">
                     <div id="game-over-message"></div>
                 </div>
@@ -52,20 +85,29 @@
                 </div>
             </div>
         </div>
+        
+        <!-- High Scores Modal -->
+        <div id="high-scores-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-button">&times;</span>
+                <h2>High Scores</h2>
+                <div class="score-tabs">
+                    <button class="tab-button" data-length="4">4 Letters</button>
+                    <button class="tab-button" data-length="5">5 Letters</button>
+                    <button class="tab-button" data-length="6">6 Letters</button>
+                    <button class="tab-button" data-length="7">7 Letters</button>
+                </div>
+                <div id="high-scores-list"></div>
+            </div>
+        </div>
     </div>
-    
-    <!-- High Scores Modal -->
-    <div id="high-scores-modal" class="modal">
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
-            <h2>High Scores</h2>
-            <div class="score-tabs">
-                <button class="tab-button" data-length="4">4 Letters</button>
-                <button class="tab-button" data-length="5">5 Letters</button>
-                <button class="tab-button" data-length="6">6 Letters</button>
-                <button class="tab-button" data-length="7">7 Letters</button>
-            </div>
-            <div id="high-scores-list"></div>
+            <h2>Error</h2>
+            <p id="error-message"></p>
         </div>
     </div>
 
@@ -74,8 +116,30 @@
         Comments to <a href="mailto:josullivan@stmarysedenderry.ie">JOS</a>
     </div>
 
+    <!-- Scripts -->
+    <script>
+        // Handle URL parameters for errors
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            const errorDescription = urlParams.get('error_description');
+            
+            if (error) {
+                const errorModal = document.getElementById('error-modal');
+                const errorMessage = document.getElementById('error-message');
+                let message = 'An error occurred during authentication.';
+                
+                if (error === 'unauthorized_domain') {
+                    message = 'Please use your school email (@stmarysedenderry.ie) to login.';
+                } else if (errorDescription) {
+                    message = errorDescription;
+                }
+                
+                errorMessage.textContent = message;
+                errorModal.style.display = 'block';
+            }
+        };
+    </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
-
-
