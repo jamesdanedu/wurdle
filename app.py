@@ -46,7 +46,7 @@ supabase_key = os.getenv('SUPABASE_KEY')
 MS_CLIENT_ID = os.getenv('MS_CLIENT_ID')
 MS_CLIENT_SECRET = os.getenv('MS_CLIENT_SECRET')
 MS_TENANT_ID = os.getenv('MS_TENANT_ID')
-REDIRECT_URI = 'http://localhost:5000/auth/callback' if os.getenv('FLASK_ENV') == 'development' else 'https://wurdle-orcin.vercel.app/auth/callback'
+REDIRECT_URI = 'http://localhost:5000/auth/callback' if os.getenv('FLASK_ENV') == 'softlaunch' else 'https://wurdle-orcin.vercel.app/auth/callback'
 
 SCOPES = ['User.Read']
 AUTHORITY = f'https://login.microsoftonline.com/{MS_TENANT_ID}'
