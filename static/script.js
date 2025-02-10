@@ -1,3 +1,4 @@
+// Global variables
 let wordLength = 5;
 let currentRow = 0;
 let timerInterval;
@@ -6,11 +7,68 @@ let timerMinutes = 0;
 let timerSeconds = 0;
 let usedLetters = new Set();
 let globalEventListenersInitialized = false;
+let selectedLanguage = 'en';
+
+// Language-specific alphabets
+const LANGUAGE_ALPHABETS = {
+    'en': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    'fr': 'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜŸ',
+    'es': 'ABCDEFGHIJKLMNÑOPQRSTUVWXYZÁÉÍÓÚÜ',
+    'ga': 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚ'
+};
+
+// Authentication check function
+async function checkAuth() {
+    try {
+        const response = await fetch('/auth/status', {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        const authCheck = document.getElementById('auth-check');
+        const gameContent = document.getElementById('game-content');
+        const userEmail = document.getElementById('user-email');
+        
+        if (data.authenticated) {
+            // Show game, hide auth check
+            authCheck.style.display = 'none';
+            gameContent.style.display = 'block';
+            // Display user email
+            userEmail.textContent = data.user.email;
+        } else {
+            // Show auth check, hide game
+            authCheck.style.display = 'flex';
+            gameContent.style.display = 'none';
+            userEmail.textContent = '';
+        }
+    } catch (error) {
+        console.error('Error checking auth status:', error);
+    }
+}
 
 function initializeEventListeners() {
-    if (globalEventListenersInitialized) return;
-    
     document.addEventListener('DOMContentLoaded', function() {
+        // Check authentication immediately and periodically
+        checkAuth();
+        setInterval(checkAuth, 60000); // Check every minute
+
+        const languageSelect = document.getElementById('language');
+        const wordLengthSelect = document.getElementById('word-length');
+        
+        // Initialize with default language
+        selectedLanguage = languageSelect.value;
+        initializeAlphabetGrid();
+
+        // Handle language change
+        languageSelect.addEventListener('change', function() {
+            handleLanguageChange(this.value);
+        });
+
+        // Start game button listener
+        const startButton = document.getElementById('start-game');
+        startButton.addEventListener('click', startGame);
+
+        // Setup guess input
         const guessInput = document.getElementById('guess-input');
         if (guessInput) {
             guessInput.addEventListener('keyup', function(event) {
@@ -21,32 +79,179 @@ function initializeEventListeners() {
             });
         }
 
-        const showHighScoresBtn = document.getElementById('show-high-scores');
-        if (showHighScoresBtn) {
-            showHighScoresBtn.addEventListener('click', () => {
-                showHighScores(parseInt(wordLength));
-            });
-        }
-
-        const closeBtn = document.querySelector('.close-button');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => {
-                const modal = document.getElementById('high-scores-modal');
-                if (modal) modal.style.display = 'none';
+        // Setup modal close button
+        const closeButton = document.querySelector('.close-button');
+        if (closeButton) {
+            closeButton.addEventListener('click', function() {
+                document.getElementById('high-scores-modal').style.display = 'none';
             });
         }
     });
-
-    globalEventListenersInitialized = true;
 }
 
-// Call this function once at the start
-initializeEventListeners();
+function startGame() {
+    // Check authentication first
+    fetch('/auth/status')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.authenticated) {
+                const loginModal = document.getElementById('login-modal');
+                loginModal.style.display = 'block';
+                return;
+            }
+            
+            // Show user info if authenticated
+            const userInfo = document.getElementById('user-info');
+            const userEmail = document.getElementById('user-email');
+            if (userInfo && userEmail) {
+                userInfo.style.display = 'block';
+                userEmail.textContent = data.user.email;
+            }
+            
+            // Clear any existing timer
+            if (timerInterval) {
+                stopTimer();
+            }
+
+            // Get all game settings from dropdowns
+            wordLength = document.getElementById('word-length').value;
+            const mode = document.getElementById('mode').value;
+            selectedLanguage = document.getElementById('language').value;
+            
+            fetch('/start_game', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    wordLength, 
+                    mode, 
+                    language: selectedLanguage
+                }),
+                credentials: 'include'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/auth/login';
+                        return;
+                    }
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Update display states
+                const setupScreen = document.getElementById('setup-screen');
+                const gameContainer = document.querySelector('.game-container');
+
+                // Hide setup, show game
+                setupScreen.style.display = 'none';
+                gameContainer.style.display = 'flex';
+
+                // Reset game state
+                currentRow = 0;
+
+                // Initialize game grid
+                const guessesDiv = document.getElementById('guesses');
+                guessesDiv.innerHTML = '';
+                const numGuesses = 6;  // Maximum number of guesses allowed
+
+                // Create rows with correct number of cells
+                for (let i = 0; i < numGuesses; i++) {
+                    const guessRow = document.createElement('div');
+                    guessRow.className = 'guess-row';
+                    
+                    // Create cells based on word length
+                    for (let j = 0; j < parseInt(wordLength); j++) {
+                        const letterDiv = document.createElement('span');
+                        letterDiv.className = 'letter-cell';
+                        guessRow.appendChild(letterDiv);
+                    }
+                    guessesDiv.appendChild(guessRow);
+                }
+
+                // Initialize other game elements
+                usedLetters.clear();
+                initializeAlphabetGrid();
+
+                // Start timer
+                startTime = Date.now();
+                timerMinutes = 0;
+                timerSeconds = 0;
+                timerInterval = setInterval(updateTimer, 1000);
+                
+                // Setup input field
+                const guessInput = document.getElementById('guess-input');
+                if (guessInput) {
+                    guessInput.maxLength = parseInt(wordLength);
+                    guessInput.value = '';
+                    guessInput.disabled = false;
+                    guessInput.placeholder = `Enter ${wordLength} letter word`;
+                    
+                    // Focus the input field
+                    guessInput.focus();
+                }
+
+                // Clear any previous game over message
+                document.getElementById('game-over-message').innerHTML = '';
+            })
+            .catch(error => {
+                console.error('Error starting game:', error);
+                const errorModal = document.getElementById('error-modal');
+                const errorMessage = document.getElementById('error-message');
+                errorMessage.textContent = 'Error starting game. Please try again.';
+                errorModal.style.display = 'block';
+            });
+        })
+        .catch(error => {
+            console.error('Error checking authentication:', error);
+            const errorModal = document.getElementById('error-modal');
+            const errorMessage = document.getElementById('error-message');
+            errorMessage.textContent = 'Error checking authentication status. Please try again.';
+            errorModal.style.display = 'block';
+        });
+}
+
+function updateTimer() {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    timerMinutes = Math.floor(elapsed / 60);
+    timerSeconds = elapsed % 60;
+
+    const minutesStr = timerMinutes.toString().padStart(2, '0');
+    const secondsStr = timerSeconds.toString().padStart(2, '0');
+
+    const minutesDisplay = document.getElementById('timer-minutes');
+    const secondsDisplay = document.getElementById('timer-seconds');
+    
+    if (minutesDisplay && secondsDisplay) {
+        minutesDisplay.textContent = minutesStr;
+        secondsDisplay.textContent = secondsStr;
+    }
+}
+
+function stopTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+}
+
+function getElapsedTime() {
+    return Math.floor((Date.now() - startTime) / 1000);
+}
 
 function initializeAlphabetGrid() {
+ 
     const grid = document.getElementById('alphabet-grid');
     grid.innerHTML = '';
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(letter => {
+    
+    // Add french-grid class if French is selected
+    grid.className = selectedLanguage === 'fr' ? 'french-grid' : '';
+    
+    const alphabet = LANGUAGE_ALPHABETS[selectedLanguage];
+    
+    alphabet.split('').forEach(letter => {
         const letterDiv = document.createElement('div');
         letterDiv.className = 'letter-tile';
         letterDiv.textContent = letter;
@@ -69,76 +274,35 @@ function updateUsedLetters(guess) {
     });
 }
 
-// Wait for DOM to be fully loaded before accessing elements
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded - initializing game...');
-    
-    // Initialize game elements
-    const startButton = document.getElementById('start-game');
-    const guessInput = document.getElementById('guess-input');
-    const showHighScoresButton = document.getElementById('show-high-scores');
-    const closeButton = document.querySelector('.close-button');
-    
-    // Log which elements we found/didn't find
-    console.log('Found elements:', {
-        startButton: !!startButton,
-        guessInput: !!guessInput,
-        showHighScoresButton: !!showHighScoresButton,
-        closeButton: !!closeButton
+function handleLanguageChange(language) {
+    selectedLanguage = language;
+    usedLetters.clear();
+    initializeAlphabetGrid();
+    updateWordLengthOptions(language);
+}
+
+function updateWordLengthOptions(language) {
+    const languageLengths = {
+        'en': [4, 5, 6, 7],
+        'ga': [4, 5, 6],
+        'fr': [4, 5, 6],
+        'es': [4, 5, 6]
+    };
+
+    const wordLengthSelect = document.getElementById('word-length');
+    const currentLength = wordLengthSelect.value;
+    wordLengthSelect.innerHTML = '';
+
+    languageLengths[language].forEach(length => {
+        const option = document.createElement('option');
+        option.value = length;
+        option.textContent = `${length} Letters`;
+        if (length === parseInt(currentLength) && languageLengths[language].includes(parseInt(currentLength))) {
+            option.selected = true;
+        }
+        wordLengthSelect.appendChild(option);
     });
-
-    if (startButton) {
-        startButton.addEventListener('click', () => {
-            console.log('Start button clicked');
-            wordLength = document.getElementById('word-length').value;
-            const mode = document.getElementById('mode').value;
-            
-            fetch('/start_game', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ wordLength, mode }),
-                credentials: 'same-origin'
-            })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('setup-screen').style.display = 'none';
-                document.getElementById('game-screen').style.display = 'block';
-                currentRow = 0;
-
-                const guessesDiv = document.getElementById('guesses');
-                guessesDiv.innerHTML = '';
-                for (let i = 0; i < 6; i++) {
-                    const guessRow = document.createElement('div');
-                    guessRow.className = 'guess-row';
-                    for (let j = 0; j < wordLength; j++) {
-                        const letterDiv = document.createElement('span');
-                        guessRow.appendChild(letterDiv);
-                    }
-                    guessesDiv.appendChild(guessRow);
-                }
-
-                usedLetters.clear();
-                initializeAlphabetGrid();
-
-                startTime = Date.now();
-                timerMinutes = 0;
-                timerSeconds = 0;
-                timerInterval = setInterval(updateTimer, 1000);
-                if (guessInput) {
-                    guessInput.maxLength = wordLength;
-                    guessInput.value = '';
-                    guessInput.disabled = false;
-                }
-                document.getElementById('game-over-message').innerHTML = '';
-            })
-            .catch(error => {
-                console.error('Error starting game:', error);
-            });
-        });
-    }
-});
+}
 
 function submitGuess() {
     const guessInput = document.getElementById('guess-input');
@@ -148,12 +312,12 @@ function submitGuess() {
     }
 
     const guess = guessInput.value.toLowerCase();
+    
+    // Validate guess length
     if (guess.length !== parseInt(wordLength)) {
         alert(`Please enter a ${wordLength}-letter word.`);
         return;
     }
-
-    console.log('Submitting guess:', guess);
 
     fetch('/submit_guess', {
         method: 'POST',
@@ -161,30 +325,25 @@ function submitGuess() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ guess }),
-        credentials: 'same-origin'
+        credentials: 'include'
     })
     .then(response => {
         if (!response.ok) {
+            if (response.status === 401) {
+                window.location.href = '/auth/login';
+                return;
+            }
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
     })
     .then(data => {
-        console.log('Guess response:', data);
-
         if (data.error) {
             throw new Error(data.error);
         }
 
         const guessesDiv = document.getElementById('guesses');
-        if (!guessesDiv) {
-            throw new Error('Guesses div not found');
-        }
-
         const currentGuessRow = guessesDiv.children[currentRow];
-        if (!currentGuessRow) {
-            throw new Error('Current guess row not found');
-        }
 
         currentGuessRow.innerHTML = '';
 
@@ -198,33 +357,59 @@ function submitGuess() {
         updateUsedLetters(guess);
         currentRow++;
 
-        // Check for game over conditions
         const gameIsWon = data.feedback.every(f => f.status === 'correct');
         const gameIsLost = currentRow >= 6;
         
         if (gameIsWon || gameIsLost) {
-            // If game is lost, fetch the target word
-            if (gameIsLost && !gameIsWon) {
+            stopTimer();
+            guessInput.disabled = true;
+            
+            if (gameIsWon) {
+                const finalTime = getElapsedTime();
+                
+                // Prompt for name and submit score
+                let nameInput = prompt("Congratulations! Enter your name for the high score:");
+                if (nameInput) {
+                    fetch('/submit_score', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            name: nameInput,
+                            time: finalTime,
+                            wordLength: wordLength,
+                            language: selectedLanguage
+                        }),
+                        credentials: 'include'
+                    })
+                    .then(response => response.json())
+                    .then(scoreData => {
+                        showGameOver(finalTime, data.target_word);
+                    })
+                    .catch(error => {
+                        console.error('Error submitting score:', error);
+                        showGameOver(finalTime, data.target_word);
+                    });
+                } else {
+                    showGameOver(finalTime, data.target_word);
+                }
+            } else {
+                // Get target word for game over message
                 fetch('/get_target_word')
                     .then(response => response.json())
                     .then(wordData => {
-                        clearInterval(timerInterval);
-                        guessInput.disabled = true;
-                        showGameOver(null, null, wordData.target_word, data.definition);
+                        showGameOver(null, wordData.target_word);
+                    })
+                    .catch(error => {
+                        console.error('Error getting target word:', error);
+                        showGameOver(null, 'Error getting word');
                     });
-            } else {
-                clearInterval(timerInterval);
-                guessInput.disabled = true;
-                showGameOver(
-                    data.time_taken ? Math.round(data.time_taken) : null,
-                    data.rank || null,
-                    data.target_word,
-                    data.definition
-                );
             }
         }
 
         guessInput.value = '';
+
     })
     .catch(error => {
         console.error('Error in submitGuess:', error);
@@ -232,63 +417,69 @@ function submitGuess() {
     });
 }
 
-function showGameOver(timeTaken, rank, targetWord, definition) {
-    if (!targetWord) {
-        console.error('No target word provided to showGameOver');
-        targetWord = '????';
-    }
-    
-    console.log('Definition received:', definition); // Debug log
-    
+function showGameOver(timeTaken, targetWord) {
     const gameOverMessage = document.getElementById('game-over-message');
     gameOverMessage.innerHTML = "";
 
     let gameOverContent = document.createElement('div');
     gameOverContent.className = "game-over-content";
 
-    let message = document.createElement('p');
-    message.textContent = timeTaken ? "Congrats!" : "Game Over!";
-    gameOverContent.appendChild(message);
-
     if (timeTaken) {
+        // Win condition - no need for dictionary lookup
+        let message = document.createElement('p');
+        message.textContent = "Congrats!";
+        gameOverContent.appendChild(message);
+
         let timeMessage = document.createElement('p');
         timeMessage.textContent = `Time: ${timeTaken} seconds`;
         gameOverContent.appendChild(timeMessage);
+    } else {
+        // Loss condition - only lookup dictionary for English words
+        let message = document.createElement('p');
+        message.textContent = "Game Over!";
+        gameOverContent.appendChild(message);
 
-        if (rank) {
-            let rankMessage = document.createElement('p');
-            rankMessage.textContent = `Rank: ${rank}`;
-            gameOverContent.appendChild(rankMessage);
+        // Only fetch definition for English words when game is lost
+        if (selectedLanguage === 'en') {
+            fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${targetWord}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data[0] && data[0].meanings && data[0].meanings[0]) {
+                        let def = document.createElement('p');
+                        def.className = 'definition';
+                        def.innerHTML = `<strong>Definition:</strong> ${data[0].meanings[0].definitions[0].definition}`;
+                        gameOverContent.appendChild(def);
+                    }
+                })
+                .catch(error => console.error('Error fetching definition:', error));
         }
     }
 
     let wordWas = document.createElement('p');
-    wordWas.innerHTML = `The word was: <strong>${targetWord.toUpperCase()}</strong>`;
-    gameOverContent.appendChild(wordWas);
-
-    if (definition) {
-        let def = document.createElement('p');
-        def.className = 'definition';
-        def.innerHTML = `<strong>Definition:</strong> ${definition}`;
-        gameOverContent.appendChild(def);
+    if (selectedLanguage === 'en') {
+        wordWas.innerHTML = `The word was: <strong>${targetWord.toUpperCase()}</strong>`;
     }
+    else if (selectedLanguage === 'fr') {
+        wordWas.innerHTML = `Le mot était: <strong>${targetWord.toUpperCase()}</strong>`;   
+    }
+    else if (selectedLanguage === 'ga') {
+        wordWas.innerHTML = `Bhí an focal: <strong>${targetWord.toUpperCase()}</strong>`;  
+    }
+    else if (selectedLanguage === 'es') {
+        wordWas.innerHTML = `La palabra era: <strong>${targetWord.toUpperCase()}</strong>`;        
+    }
+    gameOverContent.appendChild(wordWas);
 
     let buttonsDiv = document.createElement('div');
     buttonsDiv.style.marginTop = '15px';
     
     let playAgainButton = document.createElement('button');
-    playAgainButton.id = 'play-again';
     playAgainButton.textContent = 'New Game';
-    playAgainButton.addEventListener('click', () => {
-        location.reload();
-    });
+    playAgainButton.addEventListener('click', () => location.reload());
     
     let highScoresButton = document.createElement('button');
-    highScoresButton.id = 'show-high-scores';
     highScoresButton.textContent = 'High Scores';
-    highScoresButton.addEventListener('click', () => {
-        showHighScores(parseInt(wordLength));
-    });
+    highScoresButton.addEventListener('click', () => showHighScores(parseInt(wordLength)));
 
     buttonsDiv.appendChild(playAgainButton);
     buttonsDiv.appendChild(document.createTextNode(' '));
@@ -298,23 +489,10 @@ function showGameOver(timeTaken, rank, targetWord, definition) {
     gameOverMessage.appendChild(gameOverContent);
 }
 
-function updateTimer() {
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    timerMinutes = Math.floor(elapsed / 60);
-    timerSeconds = elapsed % 60;
-
-    const minutesStr = timerMinutes < 10 ? '0' + timerMinutes : timerMinutes;
-    const secondsStr = timerSeconds < 10 ? '0' + timerSeconds : timerSeconds;
-
-    document.getElementById('timer-minutes').textContent = minutesStr;
-    document.getElementById('timer-seconds').textContent = secondsStr;
-}
-
 function showHighScores(initialWordLength = 5) {
     const modal = document.getElementById('high-scores-modal');
     modal.style.display = 'block';
 
-    // Clear any previous active states
     document.querySelectorAll('.tab-button').forEach(tab => {
         tab.classList.remove('active');
         if (tab.dataset.length === initialWordLength.toString()) {
@@ -322,27 +500,38 @@ function showHighScores(initialWordLength = 5) {
         }
     });
 
-    loadScoresForLength(initialWordLength);
+    loadScoresForLength(initialWordLength, selectedLanguage);
 
-    // Add event listeners for tab switching
     document.querySelectorAll('.tab-button').forEach(tab => {
         tab.addEventListener('click', function() {
             document.querySelectorAll('.tab-button').forEach(t => t.classList.remove('active'));
             this.classList.add('active');
-            loadScoresForLength(this.dataset.length);
+            loadScoresForLength(this.dataset.length, selectedLanguage);
         });
     });
 }
 
-function loadScoresForLength(wordLength) {
-    fetch(`/get_scores/${wordLength}`)
+function loadScoresForLength(wordLength, language) {
+    const languageNames = {
+        'en': 'English',
+        'ga': 'Gaeilge',
+        'fr': 'Français',
+        'es': 'Español'
+    };
+
+    fetch(`/get_scores/${wordLength}?language=${language}`)
         .then(response => response.json())
         .then(scores => {
             const scoresList = document.getElementById('high-scores-list');
             
+            const languageName = languageNames[language];
+            
             let html = `
                 <table class="scores-table">
                     <thead>
+                        <tr>
+                            <th colspan="3">High Scores - ${wordLength} Letters (${languageName})</th>
+                        </tr>
                         <tr>
                             <th>Rank</th>
                             <th>Name</th>
@@ -355,7 +544,7 @@ function loadScoresForLength(wordLength) {
             if (scores.length === 0) {
                 html += `
                     <tr>
-                        <td colspan="3" style="text-align: center;">No scores yet for ${wordLength}-letter words</td>
+                        <td colspan="3" style="text-align: center;">No scores yet for ${wordLength}-letter ${languageName} words</td>
                     </tr>
                 `;
             } else {
@@ -380,63 +569,18 @@ function loadScoresForLength(wordLength) {
         });
 }
 
-function showGameOver(timeTaken, rank, targetWord, definition) {
-    // document.getElementById('game-time').textContent = timeTaken || "";
-    // document.getElementById('game-rank').textContent = rank || "";
-    
-    const gameOverMessage = document.getElementById('game-over-message');
-    gameOverMessage.innerHTML = "";
-
-    let gameOverContent = document.createElement('div');
-    gameOverContent.className = "game-over-content";
-
-    let message = document.createElement('p');
-    message.textContent = timeTaken ? "Congrats!" : "Game Over!";
-    gameOverContent.appendChild(message);
-
-    // Add time and rank if it's a win
-    if (timeTaken) {
-        let timeMessage = document.createElement('p');
-        timeMessage.textContent = `Time: ${timeTaken} seconds`;
-        gameOverContent.appendChild(timeMessage);
-
-        if (rank) {
-            let rankMessage = document.createElement('p');
-            rankMessage.textContent = `Rank: ${rank}`;
-            gameOverContent.appendChild(rankMessage);
-        }
+// Add authentication headers to all fetch requests
+const originalFetch = window.fetch;
+window.fetch = function() {
+    let [resource, config] = arguments;
+    if(config === undefined) {
+        config = {};
     }
-
-    let wordWas = document.createElement('p');
-    wordWas.innerHTML = `The word was: <strong>${targetWord.toUpperCase()}</strong>`;
-    gameOverContent.appendChild(wordWas);
-
-    if (!timeTaken && definition) {
-        let def = document.createElement('p');
-        def.textContent = "Definition: " + definition;
-        gameOverContent.appendChild(def);
+    if(config.credentials === undefined) {
+        config.credentials = 'include';
     }
+    return originalFetch.apply(this, [resource, config]);
+};
 
-    let buttonsDiv = document.createElement('div');
-    
-    let playAgainButton = document.createElement('button');
-    playAgainButton.id = 'play-again';
-    playAgainButton.textContent = 'New Game';
-    playAgainButton.addEventListener('click', () => {
-        location.reload();
-    });
-    
-    let highScoresButton = document.createElement('button');
-    highScoresButton.id = 'show-high-scores';
-    highScoresButton.textContent = 'High Scores';
-    highScoresButton.addEventListener('click', () => {
-        showHighScores(parseInt(wordLength));
-    });
-
-    buttonsDiv.appendChild(playAgainButton);
-    buttonsDiv.appendChild(document.createTextNode(' '));
-    buttonsDiv.appendChild(highScoresButton);
-    
-    gameOverContent.appendChild(buttonsDiv);
-    gameOverMessage.appendChild(gameOverContent);
-}
+// Initialize event listeners when the script loads
+initializeEventListeners();
